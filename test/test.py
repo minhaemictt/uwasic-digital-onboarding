@@ -214,16 +214,35 @@ async def test_pwm_duty(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, 5)
 
-    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    #en reg and en pwb interaction test
+
+    #out enable = 0, pwm enable = 1, output = 0
+    await send_spi_transaction(dut, 1, 0x00, 0x00)
     await send_spi_transaction(dut, 1, 0x02, 0x01)
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+    await ClockCycles(dut.clk, 10000)
+    uo_out_0 = int(dut.uo_out.value) & 1
+    assert uo_out_0 == 0, f"expecte 0 when output enable is 0, got {uo_out_0}"
+
+    #out enable = 1, pwm enable = 0, output =1 
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x00)
+    await ClockCycles(dut.clk, 10000)
+    uo_out_0 = int(dut.uo_out.value) & 1
+    assert uo_out_0 == 1, f"expected 1 when pwm enable is 0, got {uo_out_0}"
 
     # 0% duty cycle
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
     await send_spi_transaction(dut, 1, 0x04, 0x00)
     await ClockCycles(dut.clk, 10000)
     uo_out_0 = int(dut.uo_out.value) & 1
     assert uo_out_0 == 0, f"Expected low for 0% duty, got {uo_out_0}"
 
+
+    
     # 50% duty cycle
+    #in this case, it reuse the state which output enable = 1 and pwm enable = 1, so I just nêd to change the duty cyle
     await send_spi_transaction(dut, 1, 0x04, 0x80)
 
     previous = int(dut.uo_out.value) & 1
