@@ -7,6 +7,7 @@ from cocotb.triggers import RisingEdge
 from cocotb.triggers import ClockCycles
 from cocotb.types import Logic
 from cocotb.types import LogicArray
+from cocotb.triggers import FallingEdge
 
 async def await_half_sclk(dut):
     """Wait for the SCLK signal to go high or low."""
@@ -152,10 +153,123 @@ async def test_spi(dut):
 @cocotb.test()
 async def test_pwm_freq(dut):
     # Write your test here
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    dut.ena.value = 1
+    dut.ui_in.value = ui_in_logicarray(1, 0, 0)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+    previous = int(dut.uo_out.value) & 1
+    t1 = None
+    t2 = None
+
+    #first loop to find t1
+    for i in range(10000):
+        await RisingEdge(dut.clk)
+        current = int(dut.uo_out.value) & 1
+        if previous == 0 and current == 1:
+            t1 = cocotb.utils.get_sim_time(units="ns")
+            break
+        previous = current
+
+    #reset the time
+    previous = current
+
+    #second loop to find t2
+    for i in range(10000):
+        await RisingEdge(dut.clk)
+        current = int(dut.uo_out.value) & 1
+        if previous == 0 and current == 1:
+            t2 = cocotb.utils.get_sim_time(units="ns")
+            break
+        previous = current
+
+    period = t2 - t1
+    freq = 1e9 / (t2 - t1)
+
+    dut._log.info(f"PWM period: {period} ns")
+    dut._log.info(f"PWM freq: {freq} Hz")
+    
+    assert 2970 <= freq <= 3030, (
+        f"expected PWM frequncy between 2970 and 3030 Hz, got {freq} Hz"
+    )
     dut._log.info("PWM Frequency test completed successfully")
 
 
 @cocotb.test()
 async def test_pwm_duty(dut):
     # Write your test here
-    dut._log.info("PWM Duty Cycle test completed successfully")
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+    dut.ena.value = 1
+    dut.ui_in.value = ui_in_logicarray(1, 0, 0)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+
+    previous = int(dut.uo_out.value) & 1
+    t1 = None
+    t2 = None
+    t_neg = None
+
+    #first loop to find t1
+    for i in range(10000):
+        await RisingEdge(dut.clk)
+        current = int(dut.uo_out.value) & 1
+        if previous == 0 and current == 1:
+            t1 = cocotb.utils.get_sim_time(units="ns")
+            break
+        previous = current
+    #reset the time
+    previous = current
+    
+    #second loop to find the negedge value
+    for i in range(10000):
+        await RisingEdge(dut.clk)
+        current = int(dut.uo_out.value) & 1
+        if previous == 1 and current == 0:
+            t_neg = cocotb.utils.get_sim_time(units="ns")
+            break
+        previous = current
+
+    #reset the time
+    previous = current
+
+    #third loop to find t2
+    for i in range(10000):
+        await RisingEdge(dut.clk)
+        current = int(dut.uo_out.value) & 1
+        if previous == 0 and current == 1:
+            t2 = cocotb.utils.get_sim_time(units="ns")
+            break
+        previous = current
+
+
+    period = t2 - t1
+    high_time = t_neg - t1
+    duty = high_time / period
+    freq = 1e9 / period
+
+
+    assert t1 is not None, "did not see first rising edge"
+    assert t_neg is not None, "did not see falling edge"
+    assert t2 is not None, "did not see second rising edge"
+
+    dut._log.info(f"PWM period: {period} ns")
+    dut._log.info(f"PWM freq: {freq:.2f} Hz")
+    dut._log.info(f"PWM duty: {duty * 100:.2f}%")
+
+    assert abs(duty - 0.5) <= 0.01, f"expected the duty cycle to be 50%, got {duty * 100:.2f}%"
+    dut._log.info("PWM Duty test completed successfully")
