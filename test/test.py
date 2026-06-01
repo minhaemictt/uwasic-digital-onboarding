@@ -202,7 +202,6 @@ async def test_pwm_freq(dut):
     )
     dut._log.info("PWM Frequency test completed successfully")
 
-
 @cocotb.test()
 async def test_pwm_duty(dut):
     # Write your test here
@@ -217,6 +216,14 @@ async def test_pwm_duty(dut):
 
     await send_spi_transaction(dut, 1, 0x00, 0x01)
     await send_spi_transaction(dut, 1, 0x02, 0x01)
+
+    # 0% duty cycle
+    await send_spi_transaction(dut, 1, 0x04, 0x00)
+    await ClockCycles(dut.clk, 10000)
+    uo_out_0 = int(dut.uo_out.value) & 1
+    assert uo_out_0 == 0, f"Expected low for 0% duty, got {uo_out_0}"
+
+    # 50% duty cycle
     await send_spi_transaction(dut, 1, 0x04, 0x80)
 
     previous = int(dut.uo_out.value) & 1
@@ -256,12 +263,10 @@ async def test_pwm_duty(dut):
             break
         previous = current
 
-
     period = t2 - t1
     high_time = t_neg - t1
     duty = high_time / period
     freq = 1e9 / period
-
 
     assert t1 is not None, "did not see first rising edge"
     assert t_neg is not None, "did not see falling edge"
@@ -272,4 +277,11 @@ async def test_pwm_duty(dut):
     dut._log.info(f"PWM duty: {duty * 100:.2f}%")
 
     assert abs(duty - 0.5) <= 0.01, f"expected the duty cycle to be 50%, got {duty * 100:.2f}%"
+
+    # 100% duty cycle
+    await send_spi_transaction(dut, 1, 0x04, 0xFF)
+    await ClockCycles(dut.clk, 10000)
+    uo_out_0 = int(dut.uo_out.value) & 1
+    assert uo_out_0 == 1, f"Expected high for 100% duty, got {uo_out_0}"
+
     dut._log.info("PWM Duty test completed successfully")
