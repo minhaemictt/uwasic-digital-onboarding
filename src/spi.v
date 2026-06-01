@@ -67,6 +67,7 @@ module spi(
                         7'h02: en_reg_pwm_7_0   <= shift_reg[7:0];
                         7'h03: en_reg_pwm_15_8  <= shift_reg[7:0];
                         7'h04: pwm_duty_cycle   <= shift_reg[7:0];
+                        default: ;
                     endcase
                 end
                 shift_reg <= 16'b0;
