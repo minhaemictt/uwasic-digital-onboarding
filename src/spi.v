@@ -46,6 +46,7 @@ module spi(
             sclk_s1      <= sclk; 
             sclk_s2      <= sclk_s1;
             sclk_s2_prev <= sclk_s2;
+
             cs_n_s1      <= cs_n; 
             cs_n_s2      <= cs_n_s1;
             cs_n_prev    <= cs_n_s2;
@@ -70,7 +71,6 @@ module spi(
                     endcase
                 end
                 
-                shift_reg <= 16'b0;
                 count     <= 5'b0;
             end
         end
